@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Location Uygulaması Gerçek zamanlı lokasyon paylaşımı.</title>
+		<meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+		<meta charset="utf-8">
+		<script src="socket/socket.io.js"></script>
+		<script src="js/jquery-2.1.4.min.js.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDVuGlIUkpdUovh2hJLZzivivFYuv9SeBU&callback=initMap" async defer></script>
+		<style>
+			html, body {
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				font-family: arial;
+				font-size: 14px;
+			}
+			#map {
+				height: 100%;
+			}
+			#users_count{
+				visibility: hidden;
+				width: 150px;
+				text-align: center;
+				margin: 0 auto;
+				color: #003680;
+				background-color: #f5f5f5;
+				border: 1px solid #ccc;
+				border-radius: 2px;
+				padding: 3px 0;
+				margin-bottom: 10px;
+			}
+		</style>
+	</head>
+	<body>
+		<p id="users_count">0 connected users</p>
+		<div id="map"></div>
+		<script type="text/javascript">
+		var map;
+	var lat;
+			var socket = io();
+			var markers = [];
+			
+			var lng;
+					function initMap() {
+				
+			map = new google.maps.Map(document.getElementById('map'), {
+				center: {lat:(lat), lng:(lng)},
+				zoom: 16
+			});
+		}
+			
+			function lokasyon() {
+			if (navigator.geolocation) {
+				navigator.geolocation.getCurrentPosition(showlokasyon, hidePosition);
+			}else{ 
+		alert("Coğrafi Konum Bu tarayıcı tarafından desteklenmiyor. Şimdi IP adresi üzerinden konumunuzu almaya çalışıyorum.");
+				ipPosition();
+			}
+		}
+		function showlokasyon(position) {
+			lokasyondata = {
+				lat: parseFloat(position.coords.latitude),
+				lng: parseFloat(position.coords.longitude)
+			};
+		
+		
+addMarker(lokasyondata);
+
+		}	
+	setInterval(function(){ //markers güncelleme
+
+		lokasyon();	
+			}, 5000);
+			
+			
+		function getLocation() {
+			if (navigator.geolocation) {
+				navigator.geolocation.getCurrentPosition(showPosition, hidePosition);
+			}else{ 
+		alert("Coğrafi Konum Bu tarayıcı tarafından desteklenmiyor. Şimdi IP adresi üzerinden konumunuzu almaya çalışıyorum.");
+				ipPosition();
+			}
+		}
+		function showPosition(position) {
+			pos = {
+				lat: parseFloat(position.coords.latitude),
+				lng: parseFloat(position.coords.longitude)
+			};
+			lat=pos.lat;
+			lng=pos.lng;
+		initMap();
+		}
+				getLocation();
+			
+
+
+		function hidePosition(position) {
+			alert('Gps  erişimi sağlanamadı . Şimdi IP adresi üzerinden konumunuzu almak için çalışıyorum.');
+			ipPosition();
+		}
+
+	
+
+		
+		var getMarkerUniqueId= function(lat, lng) {
+			return lat + '_' + lng;
+		}
+		function addMarker(location) { // Adds a marker to the map and push to the array.
+			var markerId = getMarkerUniqueId(location.lat, location.lng); // that will be used to cache this marker in markers object.
+			var marker = new google.maps.Marker({
+				position: location,
+				map: map,
+				animation: google.maps.Animation.DROP,
+				id: markerId
+				
+			});
+			setInterval(function(){ //markers güncelleme
+socket.emit('yenikonum', {pos: pos});
+		marker.setMap(null);		
+			}, 10000);
+		
+		
+			var infoWindowContent = '<div class="info_content">' +
+        '<h3>Kullanıcı Bilgisi</h3>' +
+        '<p>Kullanıcı Adı:Nurullah AKAR</p>' +
+    '</div>';
+			
+			var infoWindow=new google.maps.InfoWindow({
+        content: infoWindowContent
+    });
+			markers[markerId] = marker;
+					 google.maps.event.addListener(marker, 'click', function() {
+        infoWindow.open(map, marker);
+    });
+		}
+	
+		var removeMarker = function(marker, markerId) {
+			marker.setMap(null); // set markers setMap to null to remove it from map
+			delete markers[markerId]; // delete marker instance from markers object
+		};
+
+			
+		
+		$(document).ready(function(){
+			check_pos = setInterval(function(){ //create a loop and wait for the response
+				if(typeof pos != 'undefined'){ //while the position is not defined the loop is checking every half seconds
+					socket.emit('new_user', {pos: pos});
+					clearInterval(check_pos);
+				}
+				
+			}, 500);
+			socket.on('already', function(data){
+				$.each( data.kullanici, function( key, pos ) {
+					addMarker(pos);
+				});
+			});
+			socket.on('connected', function(data){
+				$("#users_count").html("<strong>" + data.users_count +"</strong>" + " Kullanıcı Bağlı");
+				$("#users_count").css({'visibility': 'visible'});
+				addMarker(data.pos);
+			});
+			socket.on('disconnected', function(data){
+				//we can now delete this position:
+				var markerId = getMarkerUniqueId(data.del.lat, data.del.lng); // get marker id by using clicked point's coordinate
+				var marker = markers[markerId]; // find marker
+				removeMarker(marker, markerId); // remove it
+				$("#users_count").html("<strong>" + data.users_count +"</strong>" + " Kullanıcı Bağlı");
+			});
+		});
+			
+			
+	</script>
+		<input type="button" value="tıkla" onclick="lokasyon()"></input>
+
+</body>
+</html>
